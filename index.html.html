@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auditoria Técnica ISP - V4</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        :root { --bg: #f4f7f9; --primary: #007bff; --danger: #dc3545; --dark: #343a40; --white: #ffffff; --success: #28a745; --purple: #6f42c1; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        h1 { font-size: 22px; color: var(--dark); margin: 0; }
+
+        .form-container { background: var(--white); padding: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; align-items: end; margin-bottom: 25px; }
+        .form-group { display: flex; flex-direction: column; font-size: 13px; font-weight: bold; color: #444; }
+        input, select { padding: 10px; border: 1px solid #ced4da; border-radius: 6px; margin-top: 5px; font-size: 14px; background: white; }
+        
+        .btn-add { background: var(--primary); color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-add:hover { background: #0056b3; }
+
+        /* Área de Captura */
+        #capture-area { padding: 15px; background: var(--bg); border-radius: 10px; }
+
+        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px; }
+        .chart-card { background: var(--white); padding: 15px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); min-height: 320px; }
+        
+        .table-box { background: var(--white); border-radius: 10px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: var(--dark); color: white; padding: 15px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .erro-badge { color: var(--danger); font-weight: bold; }
+
+        .btn-group { display: flex; gap: 10px; }
+        button { cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.2s; }
+        .btn-screenshot { background: var(--purple); color: white; padding: 8px 12px; font-size: 12px; }
+        .btn-excel { background: var(--success); color: white; padding: 8px 12px; font-size: 12px; }
+        .btn-clear { background: #6c757d; color: white; padding: 8px 12px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>📊 Controle de Erros de Processo ISP</h1>
+        <div class="btn-group">
+            <button class="btn-screenshot" onclick="baixarImagem()">📸 Baixar Imagem</button>
+            <button class="btn-excel" onclick="exportarExcel()">📥 Exportar CSV</button>
+            <button class="btn-clear" onclick="limparDados()">🗑️ Limpar Tudo</button>
+        </div>
+    </div>
+    
+    <div class="form-container">
+        <div class="form-group">Nome do Cliente <input type="text" id="cliente" placeholder="Ex: João Silva"></div>
+        <div class="form-group">Tipo de Erro
+            <select id="tipoErro">
+                <option value="PPPoE fora do padrão">PPPoE fora do padrão</option>
+                <option value="Concentrador errado (Antigo)">Concentrador errado (Antigo)</option>
+                <option value="Sem conexão criada">Sem conexão criada</option>
+                <option value="Dinamico com Ip">Dinamico com Ip</option>
+                <option value="Ponto de acesso errado">Ponto de acesso errado</option>
+                <option value="Atribuição sem IP">Atribuição sem IP</option>
+                <option value="Concentrador errado (Antigo) Dinamico com Ip">Conc. antigo + Dinamico c/ Ip</option>
+                <option value="Concentrador errado (Antigo) Atribuição s/ IP">Conc. antigo + Atribuição s/ IP</option>
+            </select>
+        </div>
+        <div class="form-group">Cidade <input type="text" id="cidade" placeholder="Ex: Castanhal"></div>
+        <div class="form-group">Consultor <input type="text" id="consultor" placeholder="Ex: Ricardo"></div>
+        <button class="btn-add" onclick="adicionarRegistro()">Registrar Erro</button>
+    </div>
+
+    <div id="capture-area">
+        <div class="dashboard-grid">
+            <div class="chart-card"><canvas id="graficoCidades"></canvas></div>
+            <div class="chart-card"><canvas id="graficoConsultores"></canvas></div>
+        </div>
+
+        <div class="table-box">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Cliente</th>
+                        <th>Tipo de Erro</th>
+                        <th>Cidade</th>
+                        <th>Consultor</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaCorpo"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    let registros = JSON.parse(localStorage.getItem('erros_isp_v4')) || [];
+    let chartCidades, chartConsultores;
+
+    function adicionarRegistro() {
+        const cliente = document.getElementById('cliente').value.trim();
+        const tipoErro = document.getElementById('tipoErro').value;
+        const cidade = document.getElementById('cidade').value.trim();
+        const consultor = document.getElementById('consultor').value.trim();
+
+        if(!cliente || !cidade || !consultor) {
+            alert("⚠️ Por favor, preencha todos os campos.");
+            return;
+        }
+
+        registros.push({ cliente, tipoErro, cidade, consultor });
+        salvarEAtualizar();
+        
+        document.getElementById('cliente').value = '';
+        document.getElementById('cidade').value = '';
+        document.getElementById('consultor').value = '';
+    }
+
+    function salvarEAtualizar() {
+        localStorage.setItem('erros_isp_v4', JSON.stringify(registros));
+        renderizarTabela();
+        atualizarGraficos();
+    }
+
+    function renderizarTabela() {
+        const corpo = document.getElementById('tabelaCorpo');
+        corpo.innerHTML = registros.slice().reverse().map(r => `
+            <tr>
+                <td>${r.cliente}</td>
+                <td class="erro-badge">${r.tipoErro}</td>
+                <td>${r.cidade}</td>
+                <td>${r.consultor}</td>
+            </tr>
+        `).join('');
+    }
+
+    function atualizarGraficos() {
+        const cidades = {};
+        const consultores = {};
+
+        registros.forEach(r => {
+            cidades[r.cidade] = (cidades[r.cidade] || 0) + 1;
+            consultores[r.consultor] = (consultores[r.consultor] || 0) + 1;
+        });
+
+        if(chartCidades) chartCidades.destroy();
+        if(chartConsultores) chartConsultores.destroy();
+
+        chartCidades = new Chart(document.getElementById('graficoCidades'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(cidades),
+                datasets: [{ label: 'Erros por Cidade', data: Object.values(cidades), backgroundColor: '#007bff' }]
+            },
+            options: { animation: false, responsive: true, maintainAspectRatio: false }
+        });
+
+        chartConsultores = new Chart(document.getElementById('graficoConsultores'), {
+            type: 'pie',
+            data: {
+                labels: Object.keys(consultores),
+                datasets: [{ data: Object.values(consultores), backgroundColor: ['#ffc107', '#28a745', '#17a2b8', '#e83e8c', '#6610f2', '#fd7e14'] }]
+            },
+            options: { animation: false, responsive: true, maintainAspectRatio: false }
+        });
+    }
+
+    function baixarImagem() {
+        const area = document.getElementById('capture-area');
+        html2canvas(area, { backgroundColor: "#f4f7f9", scale: 2 }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'relatorio-erros-isp.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    }
+
+    function exportarExcel() {
+        if(registros.length === 0) return alert("Sem dados para exportar.");
+        let csv = "Cliente;Tipo de Erro;Cidade;Consultor\n";
+        registros.forEach(r => csv += `${r.cliente};${r.tipoErro};${r.cidade};${r.consultor}\n`);
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "erros_isp.csv";
+        link.click();
+    }
+
+    function limparDados() {
+        if(confirm("Deseja realmente apagar todos os registros do seu computador?")) {
+            registros = [];
+            salvarEAtualizar();
+        }
+    }
+
+    renderizarTabela();
+    atualizarGraficos();
+</script>
+
+</body>
+</html>
