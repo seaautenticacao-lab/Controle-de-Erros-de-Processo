@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Auditoria ISP - Fix</title>
+    <title>Dashboard Auditoria ISP - Atualizado</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -41,6 +41,7 @@
         <div class="form-group">Cliente <input type="text" id="cliente"></div>
         <div class="form-group">Erro
             <select id="tipoErro">
+                <option value="Concentrador Errado de Outra Cidade">Concentrador Errado de Outra Cidade</option>
                 <option value="PPPoE fora do padrão">PPPoE fora do padrão</option>
                 <option value="Concentrador errado (Antigo)">Concentrador errado (Antigo)</option>
                 <option value="Sem conexão criada">Sem conexão criada</option>
@@ -70,6 +71,7 @@
 </div>
 
 <script>
+    // Seus dados do JSON Bin
     const BIN_ID = "69b9560faa77b81da9f1b46d";
     const MASTER_KEY = "$2a$10$OCvV0EQunKhQKKTZBhUQ/.//aQrFwn6qeIzDL2qBCrX1jLMcKCDcy";
     const URL_BIN = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
@@ -108,12 +110,12 @@
     }
 
     function adicionarRegistro() {
-        const cli = document.getElementById('cliente').value;
+        const cli = document.getElementById('cliente').value.trim();
         const err = document.getElementById('tipoErro').value;
-        const cid = document.getElementById('cidade').value;
-        const con = document.getElementById('consultor').value;
+        const cid = document.getElementById('cidade').value.trim();
+        const con = document.getElementById('consultor').value.trim();
 
-        if(!cli || !cid || !con) return alert("Preencha tudo!");
+        if(!cli || !cid || !con) return alert("Preencha todos os campos!");
 
         registros.push({ cliente: cli, tipoErro: err, cidade: cid, consultor: con });
         render();
@@ -138,9 +140,9 @@
     }
 
     function baixarImagem() {
-        html2canvas(document.getElementById('capture-area')).then(canvas => {
+        html2canvas(document.getElementById('capture-area'), { scale: 2 }).then(canvas => {
             const link = document.createElement('a');
-            link.download = 'dashboard.png';
+            link.download = 'dashboard_auditoria.png';
             link.href = canvas.toDataURL();
             link.click();
         });
@@ -148,14 +150,14 @@
 
     function exportarExcel() {
         let csv = "Cliente;Erro;Cidade;Consultor\n" + registros.map(r => `${r.cliente};${r.tipoErro};${r.cidade};${r.consultor}`).join("\n");
-        const blob = new Blob([csv], { type: 'text/csv' });
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = "erros.csv";
+        link.download = "erros_isp.csv";
         link.click();
     }
 
-    function limparDados() { if(confirm("Apagar tudo online?")) { registros = []; render(); salvar(); } }
+    function limparDados() { if(confirm("Apagar tudo online permanentemente?")) { registros = []; render(); salvar(); } }
 
     carregar();
 </script>
