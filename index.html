@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auditoria ISP Pro - Atualizado</title>
+    <title>Auditoria ISP Pro - v3.0</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -66,33 +66,35 @@
         </div>
         <div style="display:flex; gap:10px; flex-wrap: wrap;">
             <button class="btn" style="background:var(--secondary)" onclick="baixarImagem()">📸 Imagem</button>
-            <button class="btn" style="background:var(--success)" onclick="exportarExcel()">📥 Planilha</button>
-            <button class="btn" style="background:var(--danger)" onclick="limparDados()">🗑️ Limpar Tudo</button>
+            <button class="btn" style="background:var(--success)" onclick="exportarExcel()">📥 CSV</button>
+            <button class="btn" style="background:var(--danger)" onclick="limparDados()">🗑️ Reset</button>
         </div>
     </div>
 
     <div class="stats-row">
         <div class="stat-card"><h3>Total de Erros</h3><p id="stat-total">0</p></div>
         <div class="stat-card" style="border-left-color: var(--secondary)"><h3>Cidades Afetadas</h3><p id="stat-cidades">0</p></div>
-        <div class="stat-card" style="border-left-color: #f4a100"><h3>Consultor Líder</h3><p id="stat-consultor">-</p></div>
+        <div class="stat-card" style="border-left-color: #f4a100"><h3>Auditores Ativos</h3><p id="stat-consultor">-</p></div>
     </div>
 
     <div class="form-container">
-        <div class="form-group">Cliente <input type="text" id="cliente" placeholder="Nome do assinante"></div>
+        <div class="form-group">Cliente <input type="text" id="cliente" placeholder="Assinante"></div>
         <div class="form-group">Tipo de Erro
             <select id="tipoErro">
                 <option value="Dinâmico ao invés de Atribuição">Dinâmico ao invés de Atribuição</option>
                 <option value="Atribuição ao invés de Dinâmico">Atribuição ao invés de Dinâmico</option>
+                <option value="Dinâmico com IP">Dinâmico com IP</option>
+                <option value="Atribuição sem IP">Atribuição sem IP</option>
                 <option value="Concentrador Errado">Concentrador Errado</option>
+                <option value="Concentrador Antigo">Concentrador Antigo</option>
                 <option value="PPPoE fora do padrão">PPPoE fora do padrão</option>
                 <option value="Sem conexão criada">Sem conexão criada</option>
                 <option value="Ponto de acesso errado">Ponto de acesso errado</option>
-                <option value="Concentrador Antigo">Concentrador Antigo</option>
             </select>
         </div>
         <div class="form-group">Cidade <input type="text" id="cidade" placeholder="Ex: Belém"></div>
-        <div class="form-group">Consultor <input type="text" id="consultor" placeholder="Auditado por..."></div>
-        <button class="btn btn-add" onclick="adicionarRegistro()">💾 Registrar Erro</button>
+        <div class="form-group">Consultor <input type="text" id="consultor" placeholder="Quem auditou"></div>
+        <button class="btn btn-add" onclick="adicionarRegistro()">💾 Registrar</button>
     </div>
 
     <div id="capture-area" style="background: var(--bg); padding: 5px;">
@@ -103,15 +105,15 @@
 
         <div class="table-section">
             <div class="table-header">
-                <h3 style="margin:0">Lista de Auditoria</h3>
-                <input type="text" id="searchBar" placeholder="🔍 Pesquisar cliente, cidade ou erro..." onkeyup="filtrarTabela()">
+                <h3 style="margin:0">Log de Registros</h3>
+                <input type="text" id="searchBar" placeholder="🔍 Buscar..." onkeyup="filtrarTabela()">
             </div>
             <div style="overflow-x: auto;">
                 <table>
                     <thead>
                         <tr>
                             <th>Cliente</th>
-                            <th>Erro Encontrado</th>
+                            <th>Erro</th>
                             <th>Cidade</th>
                             <th>Consultor</th>
                             <th style="width: 80px;">Ação</th>
@@ -132,9 +134,8 @@
     let registros = [];
     let chartCids, chartCons;
 
-    // Inicialização
     async function carregar() {
-        atualizarStatus("Conectando...", "orange");
+        atualizarStatus("Sincronizando...", "orange");
         try {
             const r = await fetch(URL_BIN, { headers: { "X-Master-Key": MASTER_KEY }});
             const d = await r.json();
@@ -142,12 +143,12 @@
             render();
             atualizarStatus("Online", "var(--success)");
         } catch (e) {
-            atualizarStatus("Erro de Sincronia", "var(--danger)");
+            atualizarStatus("Erro de Nuvem", "var(--danger)");
         }
     }
 
     async function salvar() {
-        atualizarStatus("Salvando...", "orange");
+        atualizarStatus("Sincronizando...", "orange");
         try {
             await fetch(URL_BIN, {
                 method: 'PUT',
@@ -156,7 +157,7 @@
             });
             atualizarStatus("Online", "var(--success)");
         } catch (e) {
-            alert("Erro ao salvar dados na nuvem!");
+            alert("Falha ao salvar!");
         }
     }
 
@@ -166,10 +167,10 @@
         const cid = document.getElementById('cidade').value.trim();
         const con = document.getElementById('consultor').value.trim();
 
-        if(!cli || !cid || !con) return alert("Por favor, preencha todos os campos.");
+        if(!cli || !cid || !con) return alert("Preencha tudo!");
 
         registros.push({ 
-            id: Date.now(), // ID único para exclusão facilitada
+            id: Date.now(), 
             cliente: cli, 
             tipoErro: err, 
             cidade: cid, 
@@ -183,7 +184,7 @@
     }
 
     function excluirItem(id) {
-        if(confirm("Deseja remover este registro?")) {
+        if(confirm("Excluir este item?")) {
             registros = registros.filter(r => r.id !== id);
             render();
             salvar();
@@ -200,7 +201,7 @@
                 <td><span style="color:var(--danger); font-weight:600">${r.tipoErro}</span></td>
                 <td>${r.cidade}</td>
                 <td>${r.consultor}</td>
-                <td><button class="btn btn-del" onclick="excluirItem(${r.id})">Excluir</button></td>
+                <td><button class="btn btn-del" onclick="excluirItem(${r.id})">🗑️</button></td>
             </tr>
         `).join('');
 
@@ -264,24 +265,24 @@
         const area = document.getElementById('capture-area');
         html2canvas(area, { backgroundColor: '#f0f2f5', scale: 2 }).then(canvas => {
             const link = document.createElement('a');
-            link.download = `auditoria_isp_${new Date().toISOString().slice(0,10)}.png`;
+            link.download = `relatorio_isp_${new Date().toISOString().slice(0,10)}.png`;
             link.href = canvas.toDataURL();
             link.click();
         });
     }
 
     function exportarExcel() {
-        if(registros.length === 0) return alert("Não há dados para exportar.");
+        if(registros.length === 0) return alert("Sem dados.");
         let csv = "\ufeffCliente;Erro;Cidade;Consultor\n" + registros.map(r => `${r.cliente};${r.tipoErro};${r.cidade};${r.consultor}`).join("\n");
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = "relatorio_auditoria_isp.csv";
+        link.download = "auditoria_isp.csv";
         link.click();
     }
 
     function limparDados() { 
-        if(confirm("⚠️ ATENÇÃO: Isso apagará TODOS os registros do banco de dados permanentemente. Confirma?")) { 
+        if(confirm("Apagar TUDO da nuvem?")) { 
             registros = []; 
             render(); 
             salvar(); 
